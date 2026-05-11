@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Iwaki AI v0.5 — 岩城工業 見積もりAIシステム</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+:root{--bg:#F5F6F8;--surface:#fff;--surface-h:#F6F8FA;--surface-a:#EEF1F5;--border:#E2E7ED;--border-l:#EFF2F7;--tx:#1A1D23;--tx2:#5C6370;--tx3:#8B95A5;--ac:#2563EB;--ac-l:#EFF6FF;--ac-h:#1D4ED8;--ok:#059669;--ok-l:#ECFDF5;--warn:#D97706;--warn-l:#FFFBEB;--ng:#DC2626;--mono:'JetBrains Mono',monospace;--sans:'Noto Sans JP',-apple-system,sans-serif;--r:8px;--r2:12px;--sh:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);--sh2:0 4px 12px rgba(0,0,0,.08);--tr:150ms ease;--sidebar-w:224px;--ai-w:340px}
+*{margin:0;padding:0;box-sizing:border-box}html,body{height:100%;overflow:hidden}
+body{font-family:var(--sans);background:var(--bg);color:var(--tx);font-size:13px;line-height:1.6}
+.app{display:flex;height:100vh}
+
+/* ═══ Sidebar ═══ */
+.sidebar{width:var(--sidebar-w);background:#16181F;display:flex;flex-direction:column;flex-shrink:0;transition:transform .25s ease;z-index:50}
+.sidebar-logo{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.06);cursor:pointer;transition:opacity var(--tr);display:flex;align-items:center;gap:10px}
+.sidebar-logo:hover{opacity:.85}
+.sidebar-logo svg{flex-shrink:0}
+.sidebar-logo span{color:rgba(255,255,255,.55);font-size:12px;font-weight:400;letter-spacing:.5px;white-space:nowrap}
+.sidebar-close{display:none;margin-left:auto;width:28px;height:28px;border:none;background:rgba(255,255,255,.1);border-radius:6px;color:rgba(255,255,255,.5);font-size:14px;cursor:pointer;align-items:center;justify-content:center;flex-shrink:0}
+.sidebar-close:hover{background:rgba(255,255,255,.2);color:#fff}
+.sidebar-nav{padding:8px;flex:1;overflow-y:auto}
+.nav-group{margin-bottom:4px}
+.nav-label{padding:14px 12px 6px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.2);font-weight:600}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:6px;color:rgba(255,255,255,.5);cursor:pointer;transition:all var(--tr);font-size:13px;font-weight:400}
+.nav-item:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.8)}
+.nav-item.active{background:rgba(255,255,255,.1);color:#fff;font-weight:500}
+.nav-item svg{width:18px;height:18px;opacity:.6;flex-shrink:0}
+.nav-item.active svg{opacity:1}
+.sidebar-bottom{padding:8px;border-top:1px solid rgba(255,255,255,.06)}
+.nav-item.settings-btn{color:rgba(255,255,255,.35)}
+.nav-item.settings-btn:hover{color:rgba(255,255,255,.65)}
+.sidebar-status{padding:8px 12px;display:flex;align-items:center;gap:8px;font-size:10px;color:rgba(255,255,255,.25)}
+.s-dot{width:5px;height:5px;border-radius:50%;background:var(--ok)}
+
+/* Mobile sidebar overlay */
+.sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:40}
+
+/* ═══ Main ═══ */
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.main-header{height:50px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:10px;background:var(--surface);flex-shrink:0}
+.h-menu{display:none;width:32px;height:32px;border:none;background:none;cursor:pointer;color:var(--tx2);border-radius:6px;align-items:center;justify-content:center}
+.h-menu:hover{background:var(--surface-h)}
+.h-title{font-size:14px;font-weight:600;letter-spacing:-.3px}
+.h-actions{margin-left:auto;display:flex;gap:6px}
+.main-body{flex:1;display:flex;overflow:hidden;position:relative}
+.content{flex:1;overflow-y:auto;padding:24px;min-width:0}
+
+/* ═══ AI Panel ═══ */
+.ai-panel{width:var(--ai-w);border-left:1px solid var(--border);display:none;flex-direction:column;background:var(--surface);flex-shrink:0;transition:transform .25s ease}
+.ai-panel.visible{display:flex}
+.ai-head{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.ai-head h3{font-size:12px;font-weight:600}
+.ai-dot{width:7px;height:7px;border-radius:50%;background:var(--ac);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.ai-close{display:none;margin-left:auto;width:24px;height:24px;border:none;background:none;cursor:pointer;color:var(--tx3);border-radius:4px;font-size:14px}
+.ai-close:hover{background:var(--surface-h)}
+.ai-body{flex:1;overflow-y:auto;padding:16px}
+.ai-msg{margin-bottom:14px}
+.ai-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--tx3);margin-bottom:3px}
+.ai-txt{font-size:12px;line-height:1.7;color:var(--tx2)}
+.ai-txt strong{color:var(--tx);font-weight:600}
+.ai-input{padding:10px 16px;border-top:1px solid var(--border);display:flex;gap:8px}
+.ai-input input{flex:1;padding:7px 12px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--sans)}
+.ai-input input:focus{outline:none;border-color:var(--ac)}
+
+/* AI toggle button */
+.ai-toggle{display:none;position:fixed;bottom:20px;right:20px;width:48px;height:48px;border-radius:50%;background:var(--ac);color:#fff;border:none;cursor:pointer;box-shadow:var(--sh2);z-index:30;align-items:center;justify-content:center;transition:transform .2s}
+.ai-toggle:hover{transform:scale(1.08)}
+.ai-toggle svg{width:22px;height:22px}
+
+/* ═══ Buttons ═══ */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:500;font-family:var(--sans);cursor:pointer;transition:all var(--tr);border:1px solid transparent;white-space:nowrap}
+.btn-p{background:var(--ac);color:#fff;border-color:var(--ac)}.btn-p:hover{background:var(--ac-h)}
+.btn-s{background:var(--surface);color:var(--tx);border-color:var(--border)}.btn-s:hover{background:var(--surface-h)}
+.btn-ok{background:var(--ok);color:#fff}
+.btn-sm{padding:4px 10px;font-size:11px}
+
+/* ═══ Card ═══ */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2)}
+.card-head{padding:14px 20px;border-bottom:1px solid var(--border-l);display:flex;align-items:center;justify-content:space-between}
+.card-head h3{font-size:13px;font-weight:600;letter-spacing:-.2px}
+.card-body{padding:20px}
+
+/* ═══ Section ═══ */
+.sec{margin-bottom:24px}
+.sec-title{font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.sec-title::after{content:'';flex:1;height:1px;background:var(--border-l)}
+
+/* ═══ HOME ═══ */
+.home{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:32px}
+.home-greeting{text-align:center}
+.home-greeting h2{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-bottom:4px}
+.home-greeting p{font-size:13px;color:var(--tx2)}
+.home-cards{display:flex;gap:20px;flex-wrap:wrap;justify-content:center}
+.home-card{width:280px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r2);padding:28px 24px;cursor:pointer;transition:all 200ms ease;position:relative;overflow:hidden}
+.home-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.home-card:hover{border-color:var(--tx3);transform:translateY(-2px);box-shadow:var(--sh2)}
+.home-card.c-blue::before{background:var(--ac)}
+.home-card.c-green::before{background:var(--ok)}
+.home-card svg{margin-bottom:14px;color:var(--tx3)}
+.home-card h3{font-size:15px;font-weight:600;margin-bottom:4px;letter-spacing:-.2px}
+.home-card p{font-size:12px;color:var(--tx2);line-height:1.6}
+.home-card .who{font-size:10px;color:var(--tx3);margin-top:12px;text-transform:uppercase;letter-spacing:.3px}
+
+/* ═══ SEARCH FORM ═══ */
+.search-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg label{font-size:11px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px}
+.f-sel,.f-inp{padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--sans);background:var(--surface);color:var(--tx);appearance:none;-webkit-appearance:none;transition:border var(--tr);width:100%}
+.f-sel{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%238B95A5' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;padding-right:26px}
+.f-sel:focus,.f-inp:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.f-ta{padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--sans);background:var(--surface);color:var(--tx);resize:vertical;min-height:56px;transition:border var(--tr);width:100%}
+.f-ta:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.cb-group{display:flex;flex-wrap:wrap;gap:6px;padding-top:2px}
+.cb-lbl{display:flex;align-items:center;gap:4px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;cursor:pointer;transition:all var(--tr);user-select:none}
+.cb-lbl:hover{border-color:var(--ac)}
+.cb-lbl input{display:none}
+.cb-lbl.on{background:var(--ac-l);border-color:var(--ac);color:var(--ac);font-weight:500}
+
+/* ═══ RESULTS TABLE ═══ */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.rtbl{width:100%;border-collapse:collapse;font-size:12px;min-width:700px}
+.rtbl th{text-align:left;padding:8px 10px;font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);background:var(--surface-h);white-space:nowrap}
+.rtbl td{padding:10px;border-bottom:1px solid var(--border-l);vertical-align:middle;white-space:nowrap}
+.rtbl tr:hover td{background:var(--surface-h)}
+.rtbl tr.sel td{background:var(--ac-l)}
+.score-bar{display:inline-flex;align-items:center;gap:6px}
+.score-track{width:48px;height:4px;background:var(--border-l);border-radius:2px;overflow:hidden}
+.score-fill{height:100%;border-radius:2px;background:var(--ac);transition:width .4s ease}
+.score-v{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--ac)}
+.tag{display:inline-flex;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600;letter-spacing:.3px}
+.tag-jp{background:#FEE2E2;color:#991B1B}.tag-tw{background:#DBEAFE;color:#1E40AF}
+.tag-new{background:var(--ok-l);color:#065F46}.tag-used{background:var(--warn-l);color:#92400E}
+
+/* ═══ DRAFTS ═══ */
+.draft-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.draft{border:2px solid var(--border);border-radius:var(--r2);padding:20px;cursor:pointer;transition:all 200ms ease;position:relative}
+.draft:hover{border-color:var(--ac);box-shadow:var(--sh2);transform:translateY(-1px)}
+.draft.sel{border-color:var(--ac);background:var(--ac-l)}
+.draft .badge{position:absolute;top:-1px;right:16px;padding:2px 10px;border-radius:0 0 6px 6px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.draft-rec .badge{background:var(--ac);color:#fff}
+.draft-agg .badge{background:var(--warn);color:#fff}
+.draft-safe .badge{background:var(--ok);color:#fff}
+.draft h4{font-size:14px;font-weight:600;margin:8px 0 4px}
+.draft .d-desc{font-size:11px;color:var(--tx2);margin-bottom:16px}
+.d-price{font-size:24px;font-weight:700;letter-spacing:-1px;font-family:var(--mono)}
+.d-price-l{font-size:11px;color:var(--tx3)}
+.d-bk{margin-top:16px;padding-top:12px;border-top:1px solid var(--border-l)}
+.d-bk-i{display:flex;justify-content:space-between;padding:3px 0;font-size:11px;color:var(--tx2)}
+.d-bk-i span:last-child{font-family:var(--mono);font-weight:500;color:var(--tx)}
+
+/* Spec */
+.spec{background:var(--surface-h);border-radius:6px;padding:12px 14px;margin-top:12px;font-size:11px;line-height:1.8}
+.spec-l{display:flex;justify-content:space-between;border-bottom:1px solid var(--border-l);padding:2px 0;gap:12px}
+.spec-l:last-child{border:none}
+.spec-k{color:var(--tx2);white-space:nowrap}.spec-v{font-weight:500;font-family:var(--mono);font-size:11px;text-align:right}
+
+/* Steps */
+.steps{display:flex;align-items:center;gap:0;padding:0 16px;height:44px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;overflow-x:auto}
+.step{display:flex;align-items:center;gap:6px;padding:0 10px;font-size:12px;color:var(--tx3);font-weight:500;height:100%;white-space:nowrap}
+.step.active{color:var(--ac)}.step.done{color:var(--ok)}
+.step-n{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;font-family:var(--mono);border:1.5px solid var(--border);background:var(--surface);flex-shrink:0}
+.step.active .step-n{border-color:var(--ac);background:var(--ac);color:#fff}
+.step.done .step-n{border-color:var(--ok);background:var(--ok);color:#fff}
+.step-div{width:16px;height:1px;background:var(--border);flex-shrink:0}
+.step-lbl{display:inline}
+
+/* Stats */
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.stat{text-align:center;padding:14px 10px;background:var(--surface-h);border-radius:8px}
+.stat-lbl{font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.stat-val{font-size:20px;font-weight:700;font-family:var(--mono);letter-spacing:-.5px}
+.stat-sub{font-size:10px;color:var(--tx3)}
+.stat.accent{background:var(--ac-l)}
+.stat.accent .stat-lbl,.stat.accent .stat-val,.stat.accent .stat-sub{color:var(--ac)}
+
+/* Settings Panel */
+.settings-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:100;display:none;justify-content:flex-start}
+.settings-overlay.open{display:flex}
+.settings-panel{width:min(480px,100vw);background:var(--surface);height:100%;overflow-y:auto;border-right:1px solid var(--border);box-shadow:var(--sh2)}
+.sp-head{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.sp-head h2{font-size:16px;font-weight:600}
+.sp-close{width:32px;height:32px;border:none;background:var(--surface-h);border-radius:6px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--tx2)}
+.sp-close:hover{background:var(--surface-a)}
+.sp-body{padding:24px}
+.sp-section{margin-bottom:24px}
+.sp-section h4{font-size:12px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.sp-section p{font-size:11px;color:var(--tx2);line-height:1.6}
+.sp-icon{width:16px;height:16px;flex-shrink:0}
+
+/* Tabs */
+.tab-bar{display:flex;gap:0;border-bottom:1px solid var(--border);overflow-x:auto}
+.tab-btn{padding:10px 16px;font-size:12px;font-weight:500;color:var(--tx3);cursor:pointer;border-bottom:2px solid transparent;transition:all var(--tr);white-space:nowrap;flex-shrink:0}
+.tab-btn:hover{color:var(--tx)}.tab-btn.active{color:var(--ac);border-bottom-color:var(--ac)}
+
+/* Step actions */
+.step-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}.anim{animation:fadeIn .3s ease forwards}
+
+/* ═══════════ RESPONSIVE ═══════════ */
+
+/* Medium: AI panel becomes slide-out */
+@media(max-width:1200px){
+  .ai-panel.visible{position:fixed;right:0;top:0;bottom:0;transform:translateX(100%);z-index:60;box-shadow:var(--sh2);border-left:1px solid var(--border)}
+  .ai-panel.visible.open{transform:translateX(0)}
+  .ai-close{display:flex;align-items:center;justify-content:center}
+  .ai-toggle.visible{display:flex}
+}
+
+/* Small: hide sidebar */
+@media(max-width:900px){
+  .sidebar{position:fixed;left:0;top:0;bottom:0;transform:translateX(-100%);z-index:50}
+  .sidebar.open{transform:translateX(0)}
+  .sidebar-backdrop.open{display:block}
+  .sidebar-close{display:flex}
+  .h-menu{display:flex}
+  .settings-panel{margin-left:0}
+  .search-grid{grid-template-columns:repeat(2,1fr)}
+  .draft-grid{grid-template-columns:1fr 1fr}
+  .stat-grid{grid-template-columns:repeat(3,1fr)}
+  .content{padding:16px}
+  .home-cards{flex-direction:column;align-items:center}
+  .home-card{width:100%;max-width:340px}
+}
+
+/* XS: single column */
+@media(max-width:600px){
+  .search-grid{grid-template-columns:1fr}
+  .draft-grid{grid-template-columns:1fr}
+  .stat-grid{grid-template-columns:1fr}
+  .step-lbl{display:none}
+  .step{padding:0 6px}
+  .d-price{font-size:20px}
+  .home-greeting h2{font-size:18px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar backdrop (mobile) -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar()"></div>
+
+  <!-- ═══ Sidebar ═══ -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-logo" onclick="goHome()" title="トップに戻る">
+      <!-- SVG IWAKI Logo -->
+      <svg width="72" height="20" viewBox="0 0 72 20" xmlns="http://www.w3.org/2000/svg">
+        <rect width="72" height="20" rx="2" fill="#C41E24"/>
+        <text x="36" y="14.5" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="700" fill="#fff" letter-spacing="1.5">IWAKI</text>
+      </svg>
+      <span>株式会社 岩城工業</span>
+      <button class="sidebar-close" onclick="event.stopPropagation();toggleSidebar()">✕</button>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-group">
+        <div class="nav-label">メイン</div>
+        <div class="nav-item active" data-view="estimate" onclick="navTo(this)">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="2" width="14" height="16" rx="2"/><path d="M7 6h6M7 10h6M7 14h3"/></svg>
+          見積もりを作る
+        </div>
+        <div class="nav-item" data-view="search" onclick="navTo(this)">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8.5" cy="8.5" r="5"/><path d="M12.5 12.5L17 17"/></svg>
+          過去を調べる
+        </div>
+      </div>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="nav-item settings-btn" onclick="toggleSettings()">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="2.5"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4"/></svg>
+        設定
+      </div>
+      <div class="sidebar-status"><span class="s-dot"></span>Gemini API 接続中</div>
+    </div>
+  </div>
+
+  <!-- ═══ Main ═══ -->
+  <div class="main">
+    <div class="main-header">
+      <button class="h-menu" onclick="toggleSidebar()">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h14M3 10h14M3 15h14"/></svg>
+      </button>
+      <span class="h-title" id="hTitle">ホーム</span>
+      <div class="h-actions">
+        <button class="btn btn-s btn-sm" onclick="alert('履歴（実装予定）')">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l3 2"/></svg>
+          履歴
+        </button>
+      </div>
+    </div>
+
+    <!-- Steps -->
+    <div class="steps" id="stepBar" style="display:none">
+      <div class="step active" data-s="1"><span class="step-n">1</span><span class="step-lbl">条件入力</span></div>
+      <div class="step-div"></div>
+      <div class="step" data-s="2"><span class="step-n">2</span><span class="step-lbl">類似案件</span></div>
+      <div class="step-div"></div>
+      <div class="step" data-s="3"><span class="step-n">3</span><span class="step-lbl">ドラフト選択</span></div>
+      <div class="step-div"></div>
+      <div class="step" data-s="4"><span class="step-n">4</span><span class="step-lbl">確認・出力</span></div>
+    </div>
+
+    <div class="main-body">
+      <div class="content" id="contentArea">
+
+        <!-- ═══ HOME ═══ -->
+        <div id="viewHome" class="home anim">
+          <div class="home-greeting">
+            <h2>おかえりなさい</h2>
+            <p>何をしますか？</p>
+          </div>
+          <div class="home-cards">
+            <div class="home-card c-blue" onclick="startEstimate()">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 7h8M8 11h8M8 15h4"/><path d="M16 14l2 2-2 2" stroke-width="2"/></svg>
+              <h3>見積もりを作る</h3>
+              <p>条件を入力して、AIが類似案件から原価を引いて3パターン生成。Excelまで自動出力。</p>
+              <div class="who">毎日使う — 営業全員</div>
+            </div>
+            <div class="home-card c-green" onclick="startSearch()">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="6"/><path d="M15 15l5 5"/><path d="M10 7v6M7 10h6"/></svg>
+              <h3>過去を調べる</h3>
+              <p>機械ナンバー検索・仕入れデータ閲覧・過去見積もり参照。「あの案件」がすぐ見つかる。</p>
+              <div class="who">週に数回 — 営業＋管理</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ ESTIMATE FLOW ═══ -->
+        <div id="viewEstimate" style="display:none">
+          <!-- Step 1 -->
+          <div id="est1" class="anim">
+            <div class="sec">
+              <div class="sec-title">検索条件</div>
+              <div class="card"><div class="card-body">
+                <div class="search-grid">
+                  <div class="fg"><label>トン数 *</label><select class="f-sel"><option>70t</option><option>25t</option><option>50t</option><option>100t</option><option>150t</option><option>200t</option><option>300t</option><option>500t</option></select></div>
+                  <div class="fg"><label>盤面サイズ *</label><select class="f-sel"><option>400×400mm</option><option>300×300mm</option><option>500×500mm</option><option>600×600mm</option></select></div>
+                  <div class="fg"><label>製造国 *</label><select class="f-sel"><option>日本製</option><option>台湾製</option><option>混合</option></select></div>
+                  <div class="fg"><label>区分 *</label><select class="f-sel"><option>中古OH</option><option>新規製作</option><option>修理</option></select></div>
+                  <div class="fg"><label>段数</label><select class="f-sel"><option>2段</option><option>1段</option><option>多段</option></select></div>
+                  <div class="fg"><label>顧客名</label><input class="f-inp" value="株式会社ヤマダ"></div>
+                </div>
+                <div style="margin-top:16px"><label style="font-size:11px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">オプション仕様</label>
+                  <div class="cb-group" id="cbGroup">
+                    <label class="cb-lbl on"><input type="checkbox" checked>加熱</label>
+                    <label class="cb-lbl"><input type="checkbox">冷却</label>
+                    <label class="cb-lbl"><input type="checkbox">真空</label>
+                    <label class="cb-lbl"><input type="checkbox">金型分解機</label>
+                    <label class="cb-lbl on"><input type="checkbox" checked>スライド装置</label>
+                    <label class="cb-lbl"><input type="checkbox">エリアセンサー</label>
+                    <label class="cb-lbl"><input type="checkbox">両面</label>
+                  </div>
+                </div>
+                <div style="margin-top:16px"><label style="font-size:11px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">個別指示（AI向け）</label>
+                  <textarea class="f-ta" placeholder="例：J1202を参考にここだけ変えて">J1202を参考に、中間盤ブラケットは新作。防音カバー1セット分含む。</textarea>
+                </div>
+                <div class="step-actions" style="margin-top:16px"><button class="btn btn-p" onclick="goEstStep(2)"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="5.5"/><path d="M12 12l5 5"/></svg> 類似案件を検索</button></div>
+              </div></div>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div id="est2" style="display:none">
+            <div class="sec anim">
+              <div class="sec-title">類似案件 — 5件ヒット</div>
+              <div class="card"><div class="card-body" style="padding:0">
+                <div class="tbl-wrap">
+                <table class="rtbl"><thead><tr><th style="width:32px"></th><th>番号</th><th>納入先</th><th>機械名称</th><th>製造国</th><th>区分</th><th>類似度</th><th>原価</th></tr></thead>
+                <tbody>
+                  <tr class="sel" onclick="selRow(this)"><td><input type="radio" name="c" checked></td><td style="font-family:var(--mono);font-weight:500">J1202</td><td>ヤマダ</td><td>中古70ton2段油圧成形機</td><td><span class="tag tag-jp">日本</span></td><td><span class="tag tag-used">中古</span></td><td><div class="score-bar"><div class="score-track"><div class="score-fill" style="width:95%"></div></div><span class="score-v">95</span></div></td><td style="font-family:var(--mono);font-size:11px">✓ 89行</td></tr>
+                  <tr onclick="selRow(this)"><td><input type="radio" name="c"></td><td style="font-family:var(--mono);font-weight:500">J1229</td><td>ヤマダ</td><td>70ton2段油圧成形機</td><td><span class="tag tag-jp">日本</span></td><td><span class="tag tag-new">新規</span></td><td><div class="score-bar"><div class="score-track"><div class="score-fill" style="width:82%"></div></div><span class="score-v">82</span></div></td><td style="font-family:var(--mono);font-size:11px">✓ 仕様</td></tr>
+                  <tr onclick="selRow(this)"><td><input type="radio" name="c"></td><td style="font-family:var(--mono);font-weight:500">856</td><td>住友ベーク</td><td>70ton2段加熱油圧成形機</td><td><span class="tag tag-tw">台湾</span></td><td><span class="tag tag-new">新規</span></td><td><div class="score-bar"><div class="score-track"><div class="score-fill" style="width:71%"></div></div><span class="score-v">71</span></div></td><td style="font-family:var(--mono);font-size:11px">✓ 45行</td></tr>
+                  <tr onclick="selRow(this)"><td><input type="radio" name="c"></td><td style="font-family:var(--mono);font-weight:500">912</td><td>前田工繊</td><td>70ton油圧成形機</td><td><span class="tag tag-jp">日本</span></td><td><span class="tag tag-used">中古</span></td><td><div class="score-bar"><div class="score-track"><div class="score-fill" style="width:64%"></div></div><span class="score-v">64</span></div></td><td style="font-family:var(--mono);font-size:11px;color:var(--tx3)">—</td></tr>
+                  <tr onclick="selRow(this)"><td><input type="radio" name="c"></td><td style="font-family:var(--mono);font-weight:500">743</td><td>光・彩</td><td>70ton真空油圧成形機</td><td><span class="tag tag-tw">台湾</span></td><td><span class="tag tag-new">新規</span></td><td><div class="score-bar"><div class="score-track"><div class="score-fill" style="width:58%"></div></div><span class="score-v">58</span></div></td><td style="font-family:var(--mono);font-size:11px">✓ 62行</td></tr>
+                </tbody></table>
+                </div>
+              </div></div>
+            </div>
+            <div class="sec anim">
+              <div class="sec-title">選択案件の原価内訳 — J1202</div>
+              <div class="card"><div class="card-body">
+                <div class="stat-grid">
+                  <div class="stat"><div class="stat-lbl">外部仕入れ</div><div class="stat-val">¥2,232,312</div><div class="stat-sub">89行</div></div>
+                  <div class="stat"><div class="stat-lbl">人件費（除外）</div><div class="stat-val" style="color:var(--tx3)">¥3,205,000</div><div class="stat-sub">7行</div></div>
+                  <div class="stat accent"><div class="stat-lbl">適用倍率</div><div class="stat-val">×2.5</div><div class="stat-sub">推定 ¥5,580,780</div></div>
+                </div>
+                <div style="font-size:11px;color:var(--tx2)"><strong>TOP3：</strong>伸栄産業 ¥489K / 榎本ハガネ ¥336K / 丸新 ¥332K</div>
+              </div></div>
+            </div>
+            <div class="step-actions"><button class="btn btn-s" onclick="goEstStep(1)">← 条件に戻る</button><button class="btn btn-p" onclick="goEstStep(3)">AIドラフト生成 →</button></div>
+          </div>
+
+          <!-- Step 3 -->
+          <div id="est3" style="display:none">
+            <div class="sec anim">
+              <div class="sec-title">AIドラフト — 3パターン</div>
+              <div class="draft-grid">
+                <div class="draft draft-rec sel" onclick="selDraft(this)"><div class="badge">推奨</div><h4>標準見積もり</h4><div class="d-desc">基本倍率×2.5</div><div class="d-price">¥5,580,000</div><div class="d-price-l">税抜</div><div class="d-bk"><div class="d-bk-i"><span>機械本体</span><span>¥5,580,000</span></div><div class="d-bk-i"><span>防音カバー</span><span>内包</span></div><div class="d-bk-i" style="font-weight:600;border-top:1px solid var(--border);padding-top:6px;margin-top:4px"><span>合計</span><span>¥5,580,000</span></div></div></div>
+                <div class="draft draft-agg" onclick="selDraft(this)"><div class="badge">攻め</div><h4>競争力重視</h4><div class="d-desc">倍率×0.9 + 値引き</div><div class="d-price">¥4,980,000</div><div class="d-price-l">税抜</div><div class="d-bk"><div class="d-bk-i"><span>機械本体</span><span>¥5,220,000</span></div><div class="d-bk-i"><span>値引き</span><span style="color:var(--ng)">-¥240,000</span></div><div class="d-bk-i" style="font-weight:600;border-top:1px solid var(--border);padding-top:6px;margin-top:4px"><span>合計</span><span>¥4,980,000</span></div></div></div>
+                <div class="draft draft-safe" onclick="selDraft(this)"><div class="badge">安全</div><h4>リスクヘッジ</h4><div class="d-desc">倍率×1.1 + 材料費</div><div class="d-price">¥6,380,000</div><div class="d-price-l">税抜</div><div class="d-bk"><div class="d-bk-i"><span>機械本体</span><span>¥5,980,000</span></div><div class="d-bk-i"><span>材料費追加</span><span>¥400,000</span></div><div class="d-bk-i" style="font-weight:600;border-top:1px solid var(--border);padding-top:6px;margin-top:4px"><span>合計</span><span>¥6,380,000</span></div></div></div>
+              </div>
+            </div>
+            <div class="sec anim">
+              <div class="sec-title">仕様記述プレビュー</div>
+              <div class="card"><div class="card-body">
+                <div class="spec">
+                  <div class="spec-l"><span class="spec-k">品名</span><span class="spec-v">中古70ton2段 DSP-70(OH)</span></div>
+                  <div class="spec-l"><span class="spec-k">盤面</span><span class="spec-v">400×400mm</span></div>
+                  <div class="spec-l"><span class="spec-k">熱盤</span><span class="spec-v">4枚（中間盤新作）</span></div>
+                  <div class="spec-l"><span class="spec-k">ストローク</span><span class="spec-v">200mm</span></div>
+                  <div class="spec-l"><span class="spec-k">デーライト</span><span class="spec-v">100mm×2段</span></div>
+                  <div class="spec-l"><span class="spec-k">最高圧力</span><span class="spec-v">20.6MPa</span></div>
+                  <div class="spec-l"><span class="spec-k">油圧</span><span class="spec-v">5kW INV（防音付）</span></div>
+                  <div class="spec-l"><span class="spec-k">制御</span><span class="spec-v">FX5U + 10" TP</span></div>
+                </div>
+              </div></div>
+            </div>
+            <div class="step-actions"><button class="btn btn-s" onclick="goEstStep(2)">← 類似案件に戻る</button><button class="btn btn-ok" onclick="goEstStep(4)">✓ 確認して出力</button></div>
+          </div>
+
+          <!-- Step 4 -->
+          <div id="est4" style="display:none">
+            <div class="sec anim">
+              <div class="card"><div class="card-body" style="text-align:center;padding:40px 20px">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="1.5" style="margin-bottom:14px"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 18l2 2 4-4" stroke-width="2"/></svg>
+                <h3 style="font-size:17px;margin-bottom:8px">見積書を出力</h3>
+                <p style="font-size:12px;color:var(--tx2);margin-bottom:20px">選択：<strong>推奨 ¥5,580,000</strong><br>顧客：株式会社ヤマダ<br>番号：20260511-001</p>
+                <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+                  <button class="btn btn-p" onclick="alert('Excel生成（モック）')"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 3v10M6 9l4 4 4-4"/><path d="M3 14v2a1 1 0 001 1h12a1 1 0 001-1v-2"/></svg> Excel</button>
+                  <button class="btn btn-s" onclick="alert('Googleドライブ保存（モック）')"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 9a5 5 0 019.5-1.5A3.5 3.5 0 0117 11a3 3 0 01-3 3H6a4 4 0 01-1-7z"/></svg> ドライブ保存</button>
+                </div>
+                <div style="margin-top:14px;font-size:10px;color:var(--tx3)">保存先：会社別書類 / ヤマダ / 見積もり /</div>
+              </div></div>
+            </div>
+            <div class="step-actions" style="justify-content:flex-start;margin-top:8px"><button class="btn btn-s" onclick="goEstStep(3)">← ドラフトに戻る</button></div>
+          </div>
+        </div>
+
+        <!-- ═══ SEARCH VIEW ═══ -->
+        <div id="viewSearch" style="display:none">
+          <div class="anim" style="display:flex;flex-direction:column;gap:16px">
+            <div class="tab-bar">
+              <div class="tab-btn active" onclick="switchSearchTab(this)">機械ナンバー</div>
+              <div class="tab-btn" onclick="switchSearchTab(this)">仕入れデータ</div>
+              <div class="tab-btn" onclick="switchSearchTab(this)">過去見積もり</div>
+            </div>
+            <div class="card"><div class="card-body" style="min-height:240px;display:flex;align-items:center;justify-content:center;color:var(--tx3);font-size:13px">
+              <div style="text-align:center">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom:10px;color:var(--border)"><circle cx="10" cy="10" r="6"/><path d="M15 15l5 5"/></svg>
+                <div>Phase 2以降で実装</div>
+              </div>
+            </div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ AI Panel ═══ -->
+      <div class="ai-panel" id="aiPanel">
+        <div class="ai-head">
+          <div class="ai-dot"></div>
+          <h3>Iwaki AI</h3>
+          <span style="font-size:10px;color:var(--tx3);margin-left:8px;font-family:var(--mono)">Gemini 2.5</span>
+          <button class="ai-close" onclick="toggleAI()">✕</button>
+        </div>
+        <div class="ai-body" id="aiBody">
+          <div class="ai-msg anim"><div class="ai-lbl">Iwaki AI</div><div class="ai-txt">おかえりなさい。<br>「見積もりを作る」に進むと、AIアシスタントが各ステップをサポートします。</div></div>
+        </div>
+        <div class="ai-input"><input type="text" placeholder="AIに質問・指示..."><button class="btn btn-p btn-sm">送信</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI Toggle FAB -->
+<button class="ai-toggle" id="aiToggle" onclick="toggleAI()">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a7 7 0 017 7c0 2.5-1.3 4.7-3.3 6l-.7.5V18H9v-2.5l-.7-.5A7 7 0 015 9a7 7 0 017-7z"/><path d="M9 21h6M10 18v3M14 18v3"/></svg>
+</button>
+
+<!-- ═══ Settings Overlay ═══ -->
+<div class="settings-overlay" id="settingsOverlay" onclick="if(event.target===this)toggleSettings()">
+  <div class="settings-panel">
+    <div class="sp-head"><h2>設定</h2><button class="sp-close" onclick="toggleSettings()">✕</button></div>
+    <div class="sp-body">
+      <div class="sp-section"><h4><svg class="sp-icon" viewBox="0 0 20 20" fill="none" stroke="var(--warn)" stroke-width="1.5"><path d="M3 10l7-7 7 7M5 8v8a1 1 0 001 1h8a1 1 0 001-1V8"/></svg> 倍率ルール</h4><p>日本製×2.5 / 台湾製×1.8の基本倍率。古い原価補正。方針テンプレート管理。</p></div>
+      <div class="sp-section"><h4><svg class="sp-icon" viewBox="0 0 20 20" fill="none" stroke="#A78BFA" stroke-width="1.5"><circle cx="7" cy="7" r="3"/><circle cx="13" cy="13" r="3"/><path d="M10 4h6v6"/></svg> 顧客マスタ</h4><p>顧客名・担当者・個別倍率。お得意様割引の設定。</p></div>
+      <div class="sp-section"><h4><svg class="sp-icon" viewBox="0 0 20 20" fill="none" stroke="var(--ok)" stroke-width="1.5"><rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 7h6M7 10h4M7 13h5"/></svg> 弥生データ取込</h4><p>弥生販売のCSV/Excelインポート。ヘッダー自動検出。</p></div>
+      <div class="sp-section"><h4><svg class="sp-icon" viewBox="0 0 20 20" fill="none" stroke="var(--ng)" stroke-width="1.5"><path d="M4 7h12M4 10h12M4 13h12"/><circle cx="15" cy="7" r="1.5" fill="var(--ng)"/></svg> 見積番号管理</h4><p>YYYYMMDD-NNN自動採番。番号台帳の閲覧。</p></div>
+      <div class="sp-section"><h4><svg class="sp-icon" viewBox="0 0 20 20" fill="none" stroke="var(--ac)" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><path d="M10 6v4M10 14v0"/></svg> AI設定</h4><p>Gemini APIキー。プロンプトテンプレート編集。</p></div>
+      <div class="sp-section"><h4><svg class="sp-icon" viewBox="0 0 20 20" fill="none" stroke="var(--tx3)" stroke-width="1.5"><path d="M3 5h14l-2 10H5L3 5zM8 15v2M12 15v2"/></svg> Googleドライブ連携</h4><p>保存先フォルダ設定。フォルダ構成マッピング。</p></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Checkbox toggle
+document.querySelectorAll('.cb-lbl').forEach(l=>{l.addEventListener('click',e=>{e.preventDefault();l.classList.toggle('on');const cb=l.querySelector('input');cb.checked=!cb.checked})});
+
+// ═══ Navigation ═══
+function navTo(el){
+  document.querySelectorAll('.nav-item[data-view]').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  closeSidebar();
+  if(el.dataset.view==='estimate') startEstimate();
+  else if(el.dataset.view==='search') startSearch();
+}
+
+function goHome(){
+  document.querySelectorAll('.nav-item[data-view]').forEach(n=>n.classList.remove('active'));
+  hide('viewEstimate');hide('viewSearch');show('viewHome');
+  document.getElementById('stepBar').style.display='none';
+  document.getElementById('hTitle').textContent='ホーム';
+  hideAIPanel();
+  closeSidebar();
+}
+
+function startEstimate(){
+  hide('viewHome');hide('viewSearch');show('viewEstimate');
+  document.getElementById('stepBar').style.display='flex';
+  document.getElementById('hTitle').textContent='見積もり作成';
+  setNav('estimate');
+  showAIPanel();
+  goEstStep(1);
+  setAI('検索条件が入っています。<strong>70ton / 400×400 / 2段 / 日本製 / 中古OH</strong> — 準備できたら「検索」を押してください。');
+  closeSidebar();
+}
+
+function startSearch(){
+  hide('viewHome');hide('viewEstimate');show('viewSearch');
+  document.getElementById('stepBar').style.display='none';
+  document.getElementById('hTitle').textContent='過去を調べる';
+  setNav('search');
+  hideAIPanel();
+  closeSidebar();
+}
+
+function setNav(v){
+  document.querySelectorAll('.nav-item[data-view]').forEach(n=>{n.classList.toggle('active',n.dataset.view===v)});
+}
+
+// ═══ Estimate steps ═══
+function goEstStep(n){
+  for(let i=1;i<=4;i++){const e=document.getElementById('est'+i);if(e)e.style.display=i===n?'block':'none'}
+  document.querySelectorAll('.step').forEach(s=>{const sn=parseInt(s.dataset.s);s.classList.remove('active','done');if(sn===n)s.classList.add('active');else if(sn<n)s.classList.add('done')});
+  document.getElementById('contentArea').scrollTop=0;
+  const msgs={
+    2:'<strong>J1202</strong>が類似度95%でトップです。外部原価<strong>¥2,232,312</strong>（89行）。案件を選択して「ドラフト生成」へ進んでください。',
+    3:'3パターン生成しました。<strong>推奨 ¥5,580,000</strong>が標準倍率ベース。仕様はJ1229＋個別指示を反映済みです。',
+    4:'見積番号 <strong>20260511-001</strong> を自動採番しました。Excel出力またはGoogleドライブ保存を選択してください。'
+  };
+  if(msgs[n]) addAI(msgs[n]);
+}
+
+function selRow(r){document.querySelectorAll('.rtbl tr').forEach(t=>t.classList.remove('sel'));r.classList.add('sel');r.querySelector('input[type="radio"]').checked=true}
+function selDraft(c){document.querySelectorAll('.draft').forEach(d=>d.classList.remove('sel'));c.classList.add('sel')}
+function switchSearchTab(el){document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));el.classList.add('active')}
+function toggleSettings(){document.getElementById('settingsOverlay').classList.toggle('open')}
+
+// ═══ Responsive toggles ═══
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarBackdrop').classList.toggle('open');
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarBackdrop').classList.remove('open');
+}
+function toggleAI(){
+  const p=document.getElementById('aiPanel');
+  p.classList.toggle('open');
+}
+function showAIPanel(){
+  document.getElementById('aiPanel').classList.add('visible');
+  document.getElementById('aiToggle').classList.add('visible');
+}
+function hideAIPanel(){
+  const p=document.getElementById('aiPanel');
+  p.classList.remove('visible','open');
+  document.getElementById('aiToggle').classList.remove('visible');
+}
+
+// Helpers
+function show(id){document.getElementById(id).style.display=''}
+function hide(id){document.getElementById(id).style.display='none'}
+function setAI(html){document.getElementById('aiBody').innerHTML=`<div class="ai-msg anim"><div class="ai-lbl">Iwaki AI</div><div class="ai-txt">${html}</div></div>`}
+function addAI(html){const b=document.getElementById('aiBody');const m=document.createElement('div');m.className='ai-msg anim';m.innerHTML=`<div class="ai-lbl">Iwaki AI</div><div class="ai-txt">${html}</div>`;b.appendChild(m);b.scrollTop=b.scrollHeight}
+</script>
+</body>
+</html>
